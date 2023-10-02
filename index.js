@@ -16,17 +16,25 @@ function csvArrayToObj(csvData) {
 const BASE_URL = "https://www.electrical.com";
 const LOCAL_URL = "http://localhost:3000";
 
-async function loadUrls(url) {
-  try {
-    const formatedUrl = url.replace(BASE_URL, LOCAL_URL);
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-    const response = await axios.get(formatedUrl);
-    let $ = load(response.data);
-    const title = $("h1").text();
-    return { pageTitle: title, url: formatedUrl, status: title ? 200 : 404 };
-  } catch (error) {
-    console.error(error);
-  }
+async function loadUrls(url, delay) {
+  return new Promise((resolve, reject) => {
+    setTimeout(async () => {
+      try {
+        const formatedUrl = url.replace(BASE_URL, LOCAL_URL);
+        const response = await axios.get(formatedUrl);
+        let $ = load(response.data);
+        const title = $("h1").text();
+        resolve({
+          pageTitle: title,
+          url: formatedUrl,
+          status: title ? 200 : 404,
+        });
+      } catch (error) {
+        console.error(error);
+        reject(error);
+      }
+    }, delay);
+  });
 }
 
 const results = [];
@@ -38,8 +46,9 @@ fs.createReadStream("./csv/sitemap-categories.csv")
   })
   .on("end", async function () {
     const formatedArr = csvArrayToObj(results);
+    const delay = 100;
     const urls = await Promise.all(
-      formatedArr.map(async (item) => loadUrls(item.loc))
+      formatedArr.map((item, i) => loadUrls(item.loc, i * delay))
     );
     fs.writeFileSync("./csv/results/urlStatus.json", JSON.stringify(urls));
   })
