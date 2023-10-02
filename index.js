@@ -12,7 +12,15 @@ function csvArrayToObj(csvData) {
     .filter((filter) => !!filter); //filter empty lines
 }
 
-// const urlStatus = [];
+function getCount(countString) {
+  const match = countString.match(/\d+/g);
+  if (match && match.length > 0) {
+    const restNumbers = match.slice(1).join("");
+    return parseInt(restNumbers);
+  }
+  return null;
+}
+
 const BASE_URL = "https://www.electrical.com";
 const LOCAL_URL = "http://localhost:3000";
 
@@ -24,10 +32,12 @@ async function loadUrls(url, delay) {
         const response = await axios.get(formatedUrl);
         let $ = load(response.data);
         const title = $("h1").text();
+        const count = $("div.styles__LeftContainer-sc-4iftiq-1").text();
         resolve({
           pageTitle: title,
           url: formatedUrl,
           status: title ? 200 : 404,
+          count: getCount(count),
         });
       } catch (error) {
         console.error(error);
@@ -37,21 +47,48 @@ async function loadUrls(url, delay) {
   });
 }
 
-const results = [];
-
-fs.createReadStream("./csv/sitemap-categories.csv")
-  .pipe(parse({ delimiter: "," }))
-  .on("data", function (row) {
-    results.push(row);
-  })
-  .on("end", async function () {
-    const formatedArr = csvArrayToObj(results);
-    const delay = 100;
-    const urls = await Promise.all(
-      formatedArr.map((item, i) => loadUrls(item.loc, i * delay))
-    );
-    fs.writeFileSync("./csv/results/urlStatus.json", JSON.stringify(urls));
-  })
-  .on("error", function (error) {
-    console.log(error.message);
+const readdir = (dirname) => {
+  return new Promise((resolve, reject) => {
+    fs.readdir(dirname, (error, filenames) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve(filenames);
+      }
+    });
   });
+};
+
+const filtercsvFiles = (filename) => {
+  return filename.split(".")[1] === "csv";
+};
+
+const results = [];
+readdir("./csv/plp").then((filenames) => {
+  filenames = filenames.filter(filtercsvFiles);
+
+  filenames &&
+    filenames.length > 0 &&
+    filenames.map((fileName, i) => {
+      fs.createReadStream(`./csv/plp/${fileName}`)
+        .pipe(parse({ delimiter: "," }))
+        .on("data", function (row) {
+          results.push(row);
+        })
+        .on("end", async function () {
+          console.log("sdfasdf", results);
+          const formatedArr = csvArrayToObj(results);
+          const delay = 200;
+          const urls = await Promise.all(
+            formatedArr.map((item, i) => loadUrls(item?.loc, i * delay))
+          );
+          fs.writeFileSync(
+            `./results/plp/urlStatus-${i}.json`,
+            JSON.stringify(urls)
+          );
+        })
+        .on("error", function (error) {
+          console.log(error.message);
+        });
+    });
+});
