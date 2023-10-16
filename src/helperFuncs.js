@@ -18,7 +18,8 @@ function filtercsvFiles(filename) {
 function csvArrayToObj(csvData) {
   return csvData
     .map((csvLine, csvIndex) => {
-      if (csvIndex === 0 || !csvLine.length) return null; // skip header and empty lines
+      if (csvIndex === 0 || !csvLine.length || !csvLine[0].startsWith("http"))
+        return null; // skip header and empty lines
       return csvLine.reduce((a, v, i) => ({ ...a, [csvData[0][i]]: v }), {});
     })
     .filter((filter) => !!filter); //filter empty lines

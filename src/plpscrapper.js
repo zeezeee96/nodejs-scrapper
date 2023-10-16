@@ -19,16 +19,28 @@ async function loadUrls(url, delay) {
     setTimeout(async () => {
       try {
         const formatedUrl = url.replace(BASE_URL, LOCAL_URL);
-        const response = await axios.get(formatedUrl);
-        let $ = load(response.data);
-        const title = $("h1").text();
-        const count = $("div.styles__LeftContainer-sc-4iftiq-1").text();
-        resolve({
-          pageTitle: title,
-          url: formatedUrl,
-          status: title ? 200 : 404,
-          count: getCount(count),
-        });
+        await axios
+          .get(formatedUrl)
+          .then((res) => {
+            let $ = load(res.data);
+            const title = $("h1").text();
+            const count = $("div.styles__LeftContainer-sc-4iftiq-1").text();
+            resolve({
+              pageTitle: title,
+              url: formatedUrl,
+              status: title ? 200 : 404,
+              count: getCount(count),
+            });
+          })
+          .catch((err) => {
+            console.log("ere", err, formatedUrl);
+            resolve({
+              pageTitle: "Not Found",
+              url: formatedUrl,
+              status: 404,
+              count: null,
+            });
+          });
       } catch (error) {
         console.error(error);
         reject(error);
@@ -37,13 +49,13 @@ async function loadUrls(url, delay) {
   });
 }
 module.exports = function plpScrapper() {
-  const results = [];
   readdir("./csv/plp").then((filenames) => {
     filenames = filenames.filter(filtercsvFiles);
 
     filenames &&
       filenames.length > 0 &&
       filenames.map((fileName, i) => {
+        const results = [];
         fs.createReadStream(`./csv/plp/${fileName}`)
           .pipe(parse({ delimiter: "," }))
           .on("data", function (row) {
@@ -55,10 +67,15 @@ module.exports = function plpScrapper() {
             const urls = await Promise.all(
               formatedArr.map((item, i) => loadUrls(item?.loc, i * delay))
             );
-            fs.writeFileSync(
-              `../results/plp/urlStatus-${i}.json`,
-              JSON.stringify(urls)
-            );
+            const csvFilePath = `./results/plp/plpUrlStatus${i}.csv`;
+            const writableStream = fs.createWriteStream(csvFilePath);
+            writableStream.write("Page Title,Url,Status, Count\n");
+            urls.forEach((obj) => {
+              writableStream.write(
+                `${obj.pageTitle},${obj.url},${obj.status},${obj.count}\n`
+              );
+            });
+            writableStream.end();
           })
           .on("error", function (error) {
             console.error(error.message);

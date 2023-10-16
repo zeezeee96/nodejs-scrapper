@@ -16,10 +16,24 @@ async function loadUrls(url, delay) {
           .then((res) => {
             let $ = load(res.data);
             const title = $("h1").text();
+            const description = !!$(
+              "p.style__ProudctInfoParagraph-sc-d7ned9-1"
+            ).text();
+            const specs = !!$(
+              "div.style__ProductSpecSection-sc-hdkby1-2"
+            ).text();
+            const cartEnabled =
+              $("button.style__CartButton-sc-nxiv7t-27").text() ===
+              "ADD to CART"
+                ? true
+                : false;
             resolve({
               pageTitle: title,
               url: formatedUrl,
               status: 200,
+              description,
+              specs,
+              cartEnabled,
             });
           })
           .catch((err) => {
@@ -27,6 +41,9 @@ async function loadUrls(url, delay) {
               pageTitle: "Not Found",
               url: formatedUrl,
               status: err.response.status,
+              description: false,
+              specs: false,
+              cartEnabled: false,
             });
           });
       } catch (error) {
@@ -37,12 +54,12 @@ async function loadUrls(url, delay) {
   });
 }
 module.exports = function plpScrapper() {
-  const results = [];
   readdir("./csv/pdp").then((filenames) => {
     filenames = filenames.filter(filtercsvFiles);
     filenames &&
       filenames.length > 0 &&
       filenames.map((fileName, i) => {
+        const results = [];
         fs.createReadStream(`./csv/pdp/${fileName}`)
           .pipe(parse({ delimiter: "," }))
           .on("data", function (row) {
@@ -50,15 +67,23 @@ module.exports = function plpScrapper() {
           })
           .on("end", async function () {
             const formatedArr = csvArrayToObj(results);
+
             const delay = 200;
             const urls = await Promise.all(
               formatedArr.map((item, i) => loadUrls(item?.loc, i * delay))
             );
 
-            fs.writeFileSync(
-              `./results/pdp/urlStatus-${i}.json`,
-              JSON.stringify(urls)
+            const csvFilePath = `./results/pdp/pdpUrlStatus${i}.csv`;
+            const writableStream = fs.createWriteStream(csvFilePath);
+            writableStream.write(
+              "Page Title,Url,Status,Description, Specs, CartEnabled \n"
             );
+            urls.forEach((obj) => {
+              writableStream.write(
+                `${obj.pageTitle},${obj.url},${obj.status},${obj.description},${obj.specs},${obj.cartEnabled}\n`
+              );
+            });
+            writableStream.end();
           })
           .on("error", function (error) {
             console.error(error.message);
